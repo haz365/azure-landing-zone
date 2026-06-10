@@ -42,3 +42,17 @@ module "management_groups" {
   source          = "./modules/management-groups"
   subscription_id = var.subscription_id
 }
+
+# ── Networking ────────────────────────────────────────────────────
+module "networking" {
+  source               = "./modules/networking"
+  location             = var.location
+  hub_resource_group   = azurerm_resource_group.hub.name
+  spoke_resource_group = azurerm_resource_group.spoke.name
+  tags                 = var.tags
+
+  depends_on = [
+    azurerm_resource_group.hub,
+    azurerm_resource_group.spoke
+  ]
+}
