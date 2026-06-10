@@ -109,41 +109,31 @@ stages:
     dependsOn: Plan
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
     jobs:
-      - deployment: TerraformApply
+      - job: TerraformApply
         displayName: Terraform Apply
-        environment: production
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - checkout: self
+        steps:
+          - checkout: self
 
-                - task: TerraformInstaller@1
-                  displayName: Install Terraform
-                  inputs:
-                    terraformVersion: $(TF_VERSION)
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: $(TF_VERSION)
 
-                - task: TerraformTaskV4@4
-                  displayName: Terraform Init
-                  inputs:
-                    provider: azurerm
-                    command: init
-                    backendServiceArm: $(SERVICE_CONNECTION)
-                    backendAzureRmResourceGroupName: $(STORAGE_RG)
-                    backendAzureRmStorageAccountName: $(STORAGE_ACCOUNT)
-                    backendAzureRmContainerName: $(CONTAINER_NAME)
-                    backendAzureRmKey: $(STATE_KEY)
+          - task: TerraformTaskV4@4
+            displayName: Terraform Init
+            inputs:
+              provider: azurerm
+              command: init
+              backendServiceArm: $(SERVICE_CONNECTION)
+              backendAzureRmResourceGroupName: $(STORAGE_RG)
+              backendAzureRmStorageAccountName: $(STORAGE_ACCOUNT)
+              backendAzureRmContainerName: $(CONTAINER_NAME)
+              backendAzureRmKey: $(STATE_KEY)
 
-                - task: DownloadBuildArtifacts@1
-                  displayName: Download plan artifact
-                  inputs:
-                    artifactName: tfplan
-                    downloadPath: $(System.DefaultWorkingDirectory)
-
-                - task: TerraformTaskV4@4
-                  displayName: Terraform Apply
-                  inputs:
-                    provider: azurerm
-                    command: apply
-                    environmentServiceNameAzureRM: $(SERVICE_CONNECTION)
-                    commandOptions: $(System.DefaultWorkingDirectory)/tfplan/tfplan
+          - task: TerraformTaskV4@4
+            displayName: Terraform Plan and Apply
+            inputs:
+              provider: azurerm
+              command: apply
+              environmentServiceNameAzureRM: $(SERVICE_CONNECTION)
+              commandOptions: -var="subscription_id=$(SUBSCRIPTION_ID)" -auto-approve
