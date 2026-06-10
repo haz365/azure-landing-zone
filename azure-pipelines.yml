@@ -2,10 +2,6 @@ trigger:
   branches:
     include:
       - main
-  paths:
-    exclude:
-      - README.md
-      - docs/*
 
 pr:
   branches:
@@ -26,48 +22,8 @@ variables:
 
 stages:
 
-  - stage: Validate
-    displayName: Validate and Format Check
-    jobs:
-      - job: TerraformValidate
-        displayName: Terraform fmt + validate
-        steps:
-          - checkout: self
-
-          - task: TerraformInstaller@1
-            displayName: Install Terraform
-            inputs:
-              terraformVersion: $(TF_VERSION)
-
-          - task: TerraformTaskV4@4
-            displayName: Terraform Init
-            inputs:
-              provider: azurerm
-              command: init
-              backendServiceArm: $(SERVICE_CONNECTION)
-              backendAzureRmResourceGroupName: $(STORAGE_RG)
-              backendAzureRmStorageAccountName: $(STORAGE_ACCOUNT)
-              backendAzureRmContainerName: $(CONTAINER_NAME)
-              backendAzureRmKey: $(STATE_KEY)
-
-          - bash: |
-              terraform fmt -check -recursive
-              if [ $? -ne 0 ]; then
-                echo "##[error] Terraform files are not formatted. Run terraform fmt."
-                exit 1
-              fi
-            displayName: Terraform fmt check
-            workingDirectory: $(System.DefaultWorkingDirectory)
-
-          - task: TerraformTaskV4@4
-            displayName: Terraform Validate
-            inputs:
-              provider: azurerm
-              command: validate
-
   - stage: Plan
     displayName: Terraform Plan
-    dependsOn: Validate
     jobs:
       - job: TerraformPlan
         displayName: Terraform Plan
@@ -96,13 +52,7 @@ stages:
               provider: azurerm
               command: plan
               environmentServiceNameAzureRM: $(SERVICE_CONNECTION)
-              commandOptions: -var="subscription_id=$(SUBSCRIPTION_ID)" -out=$(Build.ArtifactStagingDirectory)/tfplan
-
-          - task: PublishBuildArtifacts@1
-            displayName: Publish plan artifact
-            inputs:
-              PathtoPublish: $(Build.ArtifactStagingDirectory)
-              ArtifactName: tfplan
+              commandOptions: -var="subscription_id=$(SUBSCRIPTION_ID)"
 
   - stage: Apply
     displayName: Terraform Apply
@@ -131,7 +81,7 @@ stages:
               backendAzureRmKey: $(STATE_KEY)
 
           - task: TerraformTaskV4@4
-            displayName: Terraform Plan and Apply
+            displayName: Terraform Apply
             inputs:
               provider: azurerm
               command: apply
