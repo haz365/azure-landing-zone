@@ -1,9 +1,5 @@
 data "azurerm_client_config" "current" {}
 
-data "http" "my_ip" {
-  url = "https://api.ipify.org"
-}
-
 resource "azurerm_key_vault" "main" {
   name                          = "kv-platform-${substr(var.subscription_id, 0, 8)}"
   resource_group_name           = var.spoke_resource_group
@@ -20,16 +16,6 @@ resource "azurerm_key_vault" "main" {
   }
 
   tags = var.tags
-}
-
-resource "azurerm_key_vault_access_policy" "deployer" {
-  key_vault_id = azurerm_key_vault.main.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = data.azurerm_client_config.current.object_id
-
-  secret_permissions = [
-    "Get", "List", "Set", "Delete", "Purge", "Recover"
-  ]
 }
 
 resource "azurerm_user_assigned_identity" "workload" {
