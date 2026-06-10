@@ -36,3 +36,9 @@ resource "azurerm_resource_group" "monitoring" {
   location = var.location
   tags     = var.tags
 }
+
+# ── Management Groups ─────────────────────────────────────────────
+module "management_groups" {
+  source          = "./modules/management-groups"
+  subscription_id = var.subscription_id
+}
