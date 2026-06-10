@@ -1,6 +1,5 @@
 data "azurerm_client_config" "current" {}
 
-# Get current public IP for Terraform access during deployment
 data "http" "my_ip" {
   url = "https://api.ipify.org"
 }
@@ -16,9 +15,8 @@ resource "azurerm_key_vault" "main" {
   public_network_access_enabled = true
 
   network_acls {
-    default_action = "Deny"
+    default_action = "Allow"
     bypass         = "AzureServices"
-    ip_rules       = ["${trimspace(data.http.my_ip.response_body)}/32"]
   }
 
   tags = var.tags
@@ -32,16 +30,6 @@ resource "azurerm_key_vault_access_policy" "deployer" {
   secret_permissions = [
     "Get", "List", "Set", "Delete", "Purge", "Recover"
   ]
-}
-
-resource "azurerm_key_vault_secret" "app_secret" {
-  name         = "app-secret"
-  value        = "placeholder-replace-in-production"
-  key_vault_id = azurerm_key_vault.main.id
-
-  depends_on = [azurerm_key_vault_access_policy.deployer]
-
-  tags = var.tags
 }
 
 resource "azurerm_user_assigned_identity" "workload" {
