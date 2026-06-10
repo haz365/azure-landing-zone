@@ -1,0 +1,154 @@
+# ── Azure DevOps Pipeline ─────────────────────────────────────────
+# AWS equivalent: GitHub Actions workflow
+# Authenticates via Workload Identity Federation - no stored secrets
+#
+# Plan on PR → apply on merge to main
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - README.md
+      - docs/*
+
+pr:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  TF_VERSION: '1.7.0'
+  SERVICE_CONNECTION: 'azure-service-connection'
+  STORAGE_ACCOUNT: 'sttfstatee3701db4'
+  STORAGE_RG: 'rg-tfstate'
+  CONTAINER_NAME: 'tfstate'
+  STATE_KEY: 'alz.tfstate'
+  SUBSCRIPTION_ID: '27cbfddf-1489-4c47-a1b0-37fa3521a2ee'
+
+stages:
+
+  # ── Validate ────────────────────────────────────────────────────
+  - stage: Validate
+    displayName: Validate and Format Check
+    jobs:
+      - job: TerraformValidate
+        displayName: Terraform fmt + validate
+        steps:
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: $(TF_VERSION)
+
+          - task: TerraformTaskV4@4
+            displayName: Terraform Init
+            inputs:
+              provider: azurerm
+              command: init
+              backendServiceArm: $(SERVICE_CONNECTION)
+              backendAzureRmResourceGroupName: $(STORAGE_RG)
+              backendAzureRmStorageAccountName: $(STORAGE_ACCOUNT)
+              backendAzureRmContainerName: $(CONTAINER_NAME)
+              backendAzureRmKey: $(STATE_KEY)
+
+          - bash: |
+              terraform fmt -check -recursive
+              if [ $? -ne 0 ]; then
+                echo "##[error] Terraform files are not formatted. Run terraform fmt."
+                exit 1
+              fi
+            displayName: Terraform fmt check
+            workingDirectory: $(System.DefaultWorkingDirectory)
+
+          - task: TerraformTaskV4@4
+            displayName: Terraform Validate
+            inputs:
+              provider: azurerm
+              command: validate
+
+  # ── Plan ────────────────────────────────────────────────────────
+  - stage: Plan
+    displayName: Terraform Plan
+    dependsOn: Validate
+    jobs:
+      - job: TerraformPlan
+        displayName: Terraform Plan
+        steps:
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: $(TF_VERSION)
+
+          - task: TerraformTaskV4@4
+            displayName: Terraform Init
+            inputs:
+              provider: azurerm
+              command: init
+              backendServiceArm: $(SERVICE_CONNECTION)
+              backendAzureRmResourceGroupName: $(STORAGE_RG)
+              backendAzureRmStorageAccountName: $(STORAGE_ACCOUNT)
+              backendAzureRmContainerName: $(CONTAINER_NAME)
+              backendAzureRmKey: $(STATE_KEY)
+
+          - task: TerraformTaskV4@4
+            displayName: Terraform Plan
+            inputs:
+              provider: azurerm
+              command: plan
+              environmentServiceNameAzureRM: $(SERVICE_CONNECTION)
+              commandOptions: >
+                -var="subscription_id=$(SUBSCRIPTION_ID)"
+                -out=$(Build.ArtifactStagingDirectory)/tfplan
+
+          - task: PublishBuildArtifacts@1
+            displayName: Publish plan artifact
+            inputs:
+              PathtoPublish: $(Build.ArtifactStagingDirectory)
+              ArtifactName: tfplan
+
+  # ── Apply ────────────────────────────────────────────────────────
+  - stage: Apply
+    displayName: Terraform Apply
+    dependsOn: Plan
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: TerraformApply
+        displayName: Terraform Apply
+        environment: production
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: TerraformInstaller@1
+                  displayName: Install Terraform
+                  inputs:
+                    terraformVersion: $(TF_VERSION)
+
+                - task: DownloadBuildArtifacts@1
+                  displayName: Download plan artifact
+                  inputs:
+                    artifactName: tfplan
+                    downloadPath: $(System.DefaultWorkingDirectory)
+
+                - task: TerraformTaskV4@4
+                  displayName: Terraform Init
+                  inputs:
+                    provider: azurerm
+                    command: init
+                    backendServiceArm: $(SERVICE_CONNECTION)
+                    backendAzureRmResourceGroupName: $(STORAGE_RG)
+                    backendAzureRmStorageAccountName: $(STORAGE_ACCOUNT)
+                    backendAzureRmContainerName: $(CONTAINER_NAME)
+                    backendAzureRmKey: $(STATE_KEY)
+
+                - task: TerraformTaskV4@4
+                  displayName: Terraform Apply
+                  inputs:
+                    provider: azurerm
+                    command: apply
+                    environmentServiceNameAzureRM: $(SERVICE_CONNECTION)
+                    commandOptions: $(System.DefaultWorkingDirectory)/tfplan/tfplan
