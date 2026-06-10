@@ -56,3 +56,18 @@ module "networking" {
     azurerm_resource_group.spoke
   ]
 }
+
+# ── Monitoring ────────────────────────────────────────────────────
+module "monitoring" {
+  source                    = "./modules/monitoring"
+  location                  = var.location
+  monitoring_resource_group = azurerm_resource_group.monitoring.name
+  hub_vnet_id               = module.networking.hub_vnet_id
+  spoke_vnet_id             = module.networking.spoke_vnet_id
+  tags                      = var.tags
+
+  depends_on = [
+    azurerm_resource_group.monitoring,
+    module.networking
+  ]
+}
