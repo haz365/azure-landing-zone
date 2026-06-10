@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 3.0"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.0"
+    }
   }
   backend "azurerm" {
     resource_group_name  = "rg-tfstate"
@@ -68,6 +72,22 @@ module "monitoring" {
 
   depends_on = [
     azurerm_resource_group.monitoring,
+    module.networking
+  ]
+}
+
+# ── Security ──────────────────────────────────────────────────────
+module "security" {
+  source               = "./modules/security"
+  location             = var.location
+  spoke_resource_group = azurerm_resource_group.spoke.name
+  subscription_id      = var.subscription_id
+  pe_subnet_id         = module.networking.spoke_pe_subnet_id
+  keyvault_dns_zone_id = module.networking.keyvault_dns_zone_id
+  tags                 = var.tags
+
+  depends_on = [
+    azurerm_resource_group.spoke,
     module.networking
   ]
 }
